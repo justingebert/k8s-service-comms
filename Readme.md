@@ -20,3 +20,5 @@ This is a documentation of my path in exploring, experimenting and learning Kube
 
 ### notes minikube:
 minikube needs a tunnel to expose services with type LoadBalancer
+mini kube service <service-name> 
+

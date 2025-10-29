@@ -1,0 +1,129 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>K8s Demo: Frontend ↔ Backend</title>
+    <style>
+      body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, 'Helvetica Neue', Arial, 'Noto Sans', 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol'; margin: 2rem; }
+      code { background: #f5f5f5; padding: 0.2rem 0.4rem; border-radius: 4px; }
+      .card { border: 1px solid #ddd; border-radius: 8px; padding: 1rem; max-width: 960px; }
+      button { padding: 0.6rem 1rem; font-size: 1rem; }
+      pre { background: #f8f8f8; padding: 1rem; border-radius: 8px; overflow-x: auto; }
+      table { border-collapse: collapse; width: 100%; margin-top: 0.5rem; }
+      th, td { border: 1px solid #e5e5e5; padding: 0.5rem; text-align: left; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+      th { background: #fafafa; }
+      .row-empty { color: #888; font-style: italic; }
+      .toolbar { display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.5rem; flex-wrap: wrap; }
+      .spacer { flex: 1 1 auto; }
+    </style>
+  </head>
+  <body>
+    <h1>Simple K8s App</h1>
+    <div class="card">
+      <div class="toolbar">
+        <button id="btn">Call backend</button>
+        <span class="spacer"></span>
+        <label>Show last 
+          <select id="limit">
+            <option value="10">10</option>
+            <option value="20" selected>20</option>
+            <option value="50">50</option>
+            <option value="100">100</option>
+          </select>
+          calls
+        </label>
+        <button id="refresh">Refresh history</button>
+      </div>
+      <h3>Response</h3>
+      <pre id="out">(no call yet)</pre>
+
+      <h3>Connection history</h3>
+      <div id="history-status" class="row-empty">Loading…</div>
+      <table id="history-table" style="display:none">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Called at (UTC)</th>
+            <th>From pod</th>
+          </tr>
+        </thead>
+        <tbody id="history-body">
+          <tr class="row-empty"><td colspan="3">No data</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <script>
+      const out = document.getElementById('out');
+      const limitSel = document.getElementById('limit');
+      const refreshBtn = document.getElementById('refresh');
+      const histStatus = document.getElementById('history-status');
+      const histTable = document.getElementById('history-table');
+      const histBody = document.getElementById('history-body');
+
+      async function loadHistory() {
+        histStatus.textContent = 'Loading…';
+        histTable.style.display = 'none';
+        try {
+          const limit = encodeURIComponent(limitSel.value || '20');
+          const res = await fetch(`/api/hello/history?limit=${limit}`);
+          const json = await res.json();
+          if (!json.logged) {
+            histStatus.textContent = 'Database logging is disabled or not available.';
+            return;
+          }
+          const rows = Array.isArray(json.rows) ? json.rows : [];
+          histBody.innerHTML = '';
+          if (rows.length === 0) {
+            histBody.innerHTML = '<tr class="row-empty"><td colspan="3">No data</td></tr>';
+          } else {
+            for (const r of rows) {
+              const tr = document.createElement('tr');
+              const tdId = document.createElement('td');
+              const tdAt = document.createElement('td');
+              const tdPod = document.createElement('td');
+              tdId.textContent = r.id;
+              // normalize timestamp for display
+              try {
+                const d = r.called_at ? new Date(r.called_at) : null;
+                tdAt.textContent = d ? d.toISOString().replace('T',' ').replace('Z',' UTC') : '';
+              } catch { tdAt.textContent = r.called_at || ''; }
+              tdPod.textContent = r.from_pod || '';
+              tr.appendChild(tdId); tr.appendChild(tdAt); tr.appendChild(tdPod);
+              histBody.appendChild(tr);
+            }
+          }
+          histStatus.textContent = '';
+          histTable.style.display = '';
+        } catch (e) {
+          histStatus.textContent = 'Failed to load history: ' + e;
+          histTable.style.display = 'none';
+        }
+      }
+
+      document.getElementById('btn').addEventListener('click', async () => {
+        out.textContent = 'Calling backend...';
+        try {
+          const res = await fetch('/api/hello');
+          const text = await res.text();
+          try {
+            const json = JSON.parse(text);
+            out.textContent = JSON.stringify(json, null, 2);
+          } catch {
+            out.textContent = text;
+          }
+          // Refresh history after a successful call
+          loadHistory();
+        } catch (e) {
+          out.textContent = 'Error: ' + e;
+        }
+      });
+
+      refreshBtn.addEventListener('click', loadHistory);
+      limitSel.addEventListener('change', loadHistory);
+      // Initial load
+      loadHistory();
+    </script>
+  </body>
+</html>
