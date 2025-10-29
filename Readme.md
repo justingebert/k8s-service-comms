@@ -6,17 +6,39 @@ This is a documentation of my path in exploring, experimenting and learning Kube
 - follow https://kubernetes.io/docs/tutorials/
 - ways of running k8s: minikube, kind, kubeadm
 - start with minikube for local testing
-- kubectl to communicate with k8s cluster
+- kubectl to communicate with k8s cluster 
+- deploy fullstack app to local k8s cluster
 
 ### notes k8s:
 - deployment: manages an instance of an application, ensures desired state inside the cluster
-- service: exposes deployment to external network 
-  - allows for pods to die and be recreated without affecting access to the application because it routes traffic and abstracts away the pods
+- service: exposes deployment to external network
+    - allows for pods to die and be recreated without affecting access to the application because it routes traffic and abstracts away the pods
 - pod: group of one or more application containers, it includes shared storage, IP address and information about how to run.
-  - Containers should only be scheduled together in a single Pod if they are tightly coupled and need to share resources such as disk.
-- configMap: used to store non-confidential data in key-value pairs. 
-  - as volumes updates on pull
-  - as env vars only updates on restart of pod
+    - Containers should only be scheduled together in a single Pod if they are tightly coupled and need to share resources such as disk.
+- configMap: used to store non-confidential data in key-value pairs.
+    - as volumes updates on pull
+    - as env vars only updates on restart of pod
 
 ### notes minikube:
 minikube needs a tunnel to expose services with type LoadBalancer
+
+## Testing Service Communication
+
+The Goal is to Measure and compare service communication in Kubernetes using two approaches:
+
+- Services in separate Pods communicating over the network via a ClusterIP Service.
+- Service containers in one Pod communicating via the filesystem.
+
+To Measure this the data for benchmarking will be doubled for every iteration.
+
+First we record the time it takes until the communication has succeeded.
+
+Later maybe add some more metrics:
+- latency
+- throughput
+- cpu
+- memory
+- i/o
+- bytes transferred
+
+Also interesting would be to look into what happens during failures, scaling and rollouts.
