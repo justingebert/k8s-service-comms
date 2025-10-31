@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: bench-env
+data:
+  SIZES: "1024,2048,4096,8192,16384,32768,65536"
+  REPS: "5"

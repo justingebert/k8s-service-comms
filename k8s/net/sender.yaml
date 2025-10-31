@@ -1,0 +1,29 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: net-sender
+spec:
+  backoffLimit: 3
+  template:
+    spec:
+      containers:
+        - name: net-sender
+          image: net-sender:local
+          imagePullPolicy: Never
+          envFrom:
+            - configMapRef:
+                name: bench-env
+          readinessProbe:
+            tcpSocket:
+              port: 8080
+            initialDelaySeconds: 0
+            periodSeconds: 1
+            failureThreshold: 3
+            successThreshold: 1
+            timeoutSeconds: 1
+          env:
+            - name: HOST
+              value: "net-svc"
+            - name: PORT
+              value: "8080"
+      restartPolicy: OnFailure

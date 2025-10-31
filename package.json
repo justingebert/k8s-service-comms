@@ -1,0 +1,16 @@
+{
+  "name": "k8s-testing",
+  "type": "module",
+  "version": "1.0.0",
+  "scripts": {
+    "net:receiver": "node src/net/receiver.js",
+    "net:sender": "node src/net/sender.js",
+    "file:reader": "node src/file/reader.js",
+    "file:writer": "node src/file/writer.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/justingebert/k8s-testing.git"
+  },
+  "private": true
+}

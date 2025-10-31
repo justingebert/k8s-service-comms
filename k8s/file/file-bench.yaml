@@ -1,0 +1,30 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: file-bench
+  labels:
+    role: file-bench
+spec:
+  volumes:
+    - name: data
+      emptyDir: { }
+  containers:
+    - name: reader
+      image: file-reader:local
+      imagePullPolicy: Never
+      volumeMounts:
+        - mountPath: /data
+          name: data
+      envFrom:
+        - configMapRef:
+            name: bench-env
+
+    - name: writer
+      image: file-writer:local
+      imagePullPolicy: Never
+      volumeMounts:
+        - mountPath: /data
+          name: data
+      envFrom:
+        - configMapRef:
+            name: bench-env

@@ -29,6 +29,8 @@ The Goal is to Measure and compare service communication in Kubernetes using two
 - Services in separate Pods communicating over the network via a ClusterIP Service.
 - Service containers in one Pod communicating via the filesystem.
 
+Visualization: [Figma](https://www.figma.com/board/sQk6dhJdW9P3uDKgH0IYtA/k8s-Testing?node-id=0-1&t=R43z4tdKJkp8gHjj-1)
+
 To Measure this the data for benchmarking will be doubled for every iteration.
 
 First we record the time it takes until the communication has succeeded.
@@ -42,3 +44,36 @@ Later maybe add some more metrics:
 - bytes transferred
 
 Also interesting would be to look into what happens during failures, scaling and rollouts.
+
+
+##questions
+
+What data will I use?
+- randomly generated data
+- format: 
+- size steps: 64 B, 1 KiB, 2 KiB, 4 KiB, 8 KiB, ...
+  … 512 KiB, 1 MiB, 2 MiB, 4 MiB, 8 MiB, 16 MiB 
+
+When does the time measurement start?
+
+
+Validity of data:
+- timing on different nodes might drift
+
+
+
+How will it work:
+Network:
+- record t0
+- send data via http post + t0
+- recieve response
+- record t1
+- calculate t1 - t0
+
+Files:
+
+
+
+Common issues:
+image not found:
+eval $(minikube docker-env)

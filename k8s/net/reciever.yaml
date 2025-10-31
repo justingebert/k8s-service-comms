@@ -1,0 +1,35 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: net-receiver
+  labels:
+    app: net-receiver
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: net-receiver
+  template:
+    metadata:
+      name: net-receiver
+      labels:
+        app: net-receiver
+    spec:
+      containers:
+        - name: net-receiver
+          image: net-receiver:local
+          imagePullPolicy: Never
+          env:
+            - name: PORT
+              value: "8080"
+          ports:
+            - containerPort: 8080
+              protocol: TCP
+          readinessProbe:
+            tcpSocket:
+              port: 8080
+            initialDelaySeconds: 0
+            periodSeconds: 1
+            failureThreshold: 3
+            successThreshold: 1
+            timeoutSeconds: 1
