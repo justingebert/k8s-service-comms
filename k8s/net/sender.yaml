@@ -5,22 +5,19 @@ metadata:
 spec:
   backoffLimit: 3
   template:
+    metadata:
+      name: net-receiver
     spec:
+      initContainers:
+        - name: wait
+          image: curlimages/curl:8.10.1
+          command: [ "sh", "-c", "until curl -X POST -fsS http://net-svc:8080/upload; do sleep 0.2; done" ]
       containers:
         - name: net-sender
           image: net-sender:local
-          imagePullPolicy: Never
           envFrom:
             - configMapRef:
                 name: bench-env
-          readinessProbe:
-            tcpSocket:
-              port: 8080
-            initialDelaySeconds: 0
-            periodSeconds: 1
-            failureThreshold: 3
-            successThreshold: 1
-            timeoutSeconds: 1
           env:
             - name: HOST
               value: "net-svc"

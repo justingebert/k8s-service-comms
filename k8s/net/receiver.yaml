@@ -18,7 +18,6 @@ spec:
       containers:
         - name: net-receiver
           image: net-receiver:local
-          imagePullPolicy: Never
           env:
             - name: PORT
               value: "8080"
