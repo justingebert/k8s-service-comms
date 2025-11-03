@@ -19,3 +19,12 @@ for (const size of getSizesFromEnv()) {
         console.log(`NET size=${size}B rep=${r}/${REPS} time=${dtMs.toFixed(3)}ms thr=${thr.toFixed(3)}MiB/s`);
     }
 }
+
+function getSizesFromEnv() {
+    const sizesEnv = process.env.SIZES?.trim();
+    if (!sizesEnv) throw new Error("SIZES env var must be set (comma-separated numbers)");
+    return sizesEnv
+        .split(",")
+        .map(s => Number(s.trim()))
+        .filter(n => !Number.isNaN(n) && n > 0);
+}

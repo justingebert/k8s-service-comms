@@ -4,8 +4,30 @@ import path from "node:path";
 
 const DATA_DIR = process.env.DATA_DIR || "/data";
 const REPS = Number(process.env.REPS || "5");
+const DURABLE = (process.env.DURABLE ?? "true").toLowerCase() !== "false";
 
 console.log("method,size_bytes,rep,elapsed_ms,throughput_mib_s");
+
+async function exists(p) {
+    try { await fsp.access(p, fs.constants.F_OK); return true; } catch { return false; }
+}
+
+function waitForFile(filePath) {
+    return new Promise(async (resolve, reject) => {
+        if (await exists(filePath)) return resolve();
+        const dir = path.dirname(filePath);
+        const name = path.basename(filePath);
+        const watcher = fs.watch(dir, (eventType, filename) => {
+            if (!filename) return;
+            if (filename === name && (eventType === "rename" || eventType === "change")) {
+                exists(filePath).then(found => {
+                    if (found) { try { watcher.close(); } catch {} resolve(); }
+                });
+            }
+        });
+        watcher.on("error", err => { try { watcher.close(); } catch {} reject(err); });
+    });
+}
 
 for (const size of getSizesFromEnv()) {
     const payload = Buffer.alloc(size, 0x78); // repeated 'x'
@@ -19,11 +41,11 @@ for (const size of getSizesFromEnv()) {
 
         const t0 = process.hrtime.bigint();
 
-        // write & fsync
+        // write (optionally durable via fsync)
         const fd = await fsp.open(tmp, "w");
         try {
             await fd.write(payload, 0, payload.length, 0);
-            await fd.sync();
+            if (DURABLE) await fd.sync();
         } finally {
             await fd.close();
         }
@@ -31,11 +53,8 @@ for (const size of getSizesFromEnv()) {
         // atomic rename → reader sees it
         await fsp.rename(tmp, ready);
 
-        // wait for ACK
-        while (true) {
-            try { await fsp.access(ack, fs.constants.F_OK); break; }
-            catch { await new Promise(res => setTimeout(res, 1)); }
-        }
+        // wait for ACK (event-driven, no busy loop)
+        await waitForFile(ack);
 
         const dtMs = Number(process.hrtime.bigint() - t0) / 1e6;
         const mib = size / (1024 * 1024);
