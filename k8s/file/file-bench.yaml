@@ -11,6 +11,7 @@ spec:
   containers:
     - name: reader
       image: file-reader:local
+      imagePullPolicy: Never
       volumeMounts:
         - mountPath: /data
           name: data
@@ -20,6 +21,7 @@ spec:
 
     - name: writer
       image: file-writer:local
+      imagePullPolicy: Never
       volumeMounts:
         - mountPath: /data
           name: data

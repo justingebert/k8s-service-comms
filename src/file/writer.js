@@ -41,7 +41,6 @@ for (const size of getSizesFromEnv()) {
 
         const t0 = process.hrtime.bigint();
 
-        // write (optionally durable via fsync)
         const fd = await fsp.open(tmp, "w");
         try {
             await fd.write(payload, 0, payload.length, 0);
@@ -60,7 +59,7 @@ for (const size of getSizesFromEnv()) {
         const mib = size / (1024 * 1024);
         const thr = mib / (dtMs / 1000);
         console.log(`file,${size},${r},${dtMs.toFixed(3)},${thr.toFixed(3)}`);
-        console.log(`FILE size=${size}B rep=${r}/${REPS} time=${dtMs.toFixed(3)}ms thr=${thr.toFixed(3)}MiB/s`);
+        // console.log(`FILE size=${size}B rep=${r}/${REPS} time=${dtMs.toFixed(3)}ms thr=${thr.toFixed(3)}MiB/s`);
 
         for (const p of [ready, ack]) { try { await fsp.unlink(p); } catch {} }
     }

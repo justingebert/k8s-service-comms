@@ -16,7 +16,7 @@ for (const size of getSizesFromEnv()) {
         const mib = size / (1024 * 1024);
         const thr = mib / (dtMs / 1000);
         console.log(`net,${size},${r},${dtMs.toFixed(3)},${thr.toFixed(3)}`);
-        console.log(`NET size=${size}B rep=${r}/${REPS} time=${dtMs.toFixed(3)}ms thr=${thr.toFixed(3)}MiB/s`);
+        // console.log(`NET size=${size}B rep=${r}/${REPS} time=${dtMs.toFixed(3)}ms thr=${thr.toFixed(3)}MiB/s`);
     }
 }
 

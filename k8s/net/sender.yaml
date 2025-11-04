@@ -15,6 +15,7 @@ spec:
       containers:
         - name: net-sender
           image: net-sender:local
+          imagePullPolicy: Never
           envFrom:
             - configMapRef:
                 name: bench-env
