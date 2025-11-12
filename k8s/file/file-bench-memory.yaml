@@ -6,6 +6,7 @@ metadata:
     role: file-bench
     storage: memory
 spec:
+  restartPolicy: Never  # Don't restart when benchmark completes
   volumes:
     - name: data
       emptyDir:

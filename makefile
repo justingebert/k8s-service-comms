@@ -1,5 +1,5 @@
 REGISTRY ?= local
-RUN_ID ?= $(shell date +%y%m%d_%H%M)_same-node_http8080_emptyDirDisk
+RUN_ID ?= $(shell date +%y%m%d_%H%M)_same-node_http8080_emptyDir
 
 .PHONY: build destroy apply apply-config teardown-apply deploy-net deploy-file-disk deploy-file-memory deploy-file run-sender wait-sender wait-file-disk wait-file-memory collect plot all status debug
 
@@ -47,10 +47,26 @@ wait-sender:
 	kubectl wait --for=condition=complete job/net-sender --timeout=600s
 
 wait-file-disk:
-	@while ! kubectl logs pod/file-bench-disk -c writer 2>/dev/null | tail -1 | grep -q "file-disk"; do sleep 2; done
+	@echo "Waiting for file-disk benchmark to complete..."
+	@while true; do \
+		STATUS=$$(kubectl get pod/file-bench-disk -o jsonpath='{.status.containerStatuses[?(@.name=="writer")].state}' 2>/dev/null); \
+		if echo "$$STATUS" | grep -q "terminated"; then \
+			echo "✅ file-disk writer completed"; \
+			break; \
+		fi; \
+		sleep 2; \
+	done
 
 wait-file-memory:
-	@while ! kubectl logs pod/file-bench-memory -c writer 2>/dev/null | tail -1 | grep -q "file-memory"; do sleep 2; done
+	@echo "Waiting for file-memory benchmark to complete..."
+	@while true; do \
+		STATUS=$$(kubectl get pod/file-bench-memory -o jsonpath='{.status.containerStatuses[?(@.name=="writer")].state}' 2>/dev/null); \
+		if echo "$$STATUS" | grep -q "terminated"; then \
+			echo "✅ file-memory writer completed"; \
+			break; \
+		fi; \
+		sleep 2; \
+	done
 
 collect:
 	mkdir -p results/runs/$(RUN_ID)

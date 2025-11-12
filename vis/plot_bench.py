@@ -48,23 +48,19 @@ def load_benchmark_data(run_dir: Path) -> pd.DataFrame:
     
     if net_csv.exists():
         df_net = pd.read_csv(net_csv)
-        df_net = df_net[df_net["rep"]]
         dfs.append(df_net)
 
     if file_disk_csv.exists():
         df_disk = pd.read_csv(file_disk_csv)
-        df_disk = df_disk[df_disk["rep"]]
         dfs.append(df_disk)
 
     if file_memory_csv.exists():
         df_mem = pd.read_csv(file_memory_csv)
-        df_mem = df_mem[df_mem["rep"]]
         dfs.append(df_mem)
 
     # Backwards compatibility
     if file_csv.exists() and not file_disk_csv.exists() and not file_memory_csv.exists():
         df_file = pd.read_csv(file_csv)
-        df_file = df_file[df_file["rep"]]
         dfs.append(df_file)
 
     if not dfs:
