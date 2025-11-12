@@ -5,6 +5,7 @@ import path from "node:path";
 const DATA_DIR = process.env.DATA_DIR || "/data";
 const REPS = Number(process.env.REPS || "5");
 const DURABLE = (process.env.DURABLE ?? "true").toLowerCase() !== "false";
+const STORAGE_MEDIUM = process.env.STORAGE_MEDIUM || "unknown";
 
 console.log("method,size_bytes,rep,elapsed_ms,throughput_mib_s");
 
@@ -58,7 +59,7 @@ for (const size of getSizesFromEnv()) {
         const dtMs = Number(process.hrtime.bigint() - t0) / 1e6;
         const mib = size / (1024 * 1024);
         const thr = mib / (dtMs / 1000);
-        console.log(`file,${size},${r},${dtMs.toFixed(3)},${thr.toFixed(3)}`);
+        console.log(`file-${STORAGE_MEDIUM},${size},${r},${dtMs.toFixed(3)},${thr.toFixed(3)}`);
         // console.log(`FILE size=${size}B rep=${r}/${REPS} time=${dtMs.toFixed(3)}ms thr=${thr.toFixed(3)}MiB/s`);
 
         for (const p of [ready, ack]) { try { await fsp.unlink(p); } catch {} }

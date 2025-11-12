@@ -1,0 +1,48 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: file-bench-memory
+  labels:
+    role: file-bench
+    storage: memory
+spec:
+  volumes:
+    - name: data
+      emptyDir:
+        medium: Memory
+        sizeLimit: 512Mi  # Ensure enough space for large payloads
+  containers:
+    - name: reader
+      image: file-reader:local
+      imagePullPolicy: Never
+      volumeMounts:
+        - mountPath: /data
+          name: data
+      env:
+        - name: STORAGE_MEDIUM
+          value: "memory"
+      envFrom:
+        - configMapRef:
+            name: bench-env
+      resources:
+        requests:
+          memory: "128Mi"
+        limits:
+          memory: "512Mi"
+    - name: writer
+      image: file-writer:local
+      imagePullPolicy: Never
+      volumeMounts:
+        - mountPath: /data
+          name: data
+      env:
+        - name: STORAGE_MEDIUM
+          value: "memory"
+      envFrom:
+        - configMapRef:
+            name: bench-env
+      resources:
+        requests:
+          memory: "128Mi"
+        limits:
+          memory: "512Mi"

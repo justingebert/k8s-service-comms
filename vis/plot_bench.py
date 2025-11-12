@@ -20,9 +20,11 @@ import sys
 
 def find_latest_run() -> Path:
     """Find the most recent benchmark run directory."""
-    runs_dir = Path("../results/runs")
+    # Get the script directory and construct absolute path
+    script_dir = Path(__file__).parent
+    runs_dir = script_dir.parent / "results" / "runs"
     if not runs_dir.exists():
-        print("Error: results/runs directory not found")
+        print(f"Error: results/runs directory not found at {runs_dir}")
         sys.exit(1)
 
     run_dirs = sorted([d for d in runs_dir.iterdir() if d.is_dir()])
@@ -36,15 +38,40 @@ def find_latest_run() -> Path:
 def load_benchmark_data(run_dir: Path) -> pd.DataFrame:
     """Load and combine network and file benchmark data."""
     net_csv = run_dir / "net-raw.csv"
+    file_disk_csv = run_dir / "file-disk-raw.csv"
+    file_memory_csv = run_dir / "file-memory-raw.csv"
+    
+    # For backwards compatibility, also check for old file-raw.csv
     file_csv = run_dir / "file-raw.csv"
 
-    if not net_csv.exists() or not file_csv.exists():
-        print(f"Error: CSV files not found in {run_dir}")
+    dfs = []
+    
+    if net_csv.exists():
+        df_net = pd.read_csv(net_csv)
+        df_net = df_net[df_net["rep"]]
+        dfs.append(df_net)
+
+    if file_disk_csv.exists():
+        df_disk = pd.read_csv(file_disk_csv)
+        df_disk = df_disk[df_disk["rep"]]
+        dfs.append(df_disk)
+
+    if file_memory_csv.exists():
+        df_mem = pd.read_csv(file_memory_csv)
+        df_mem = df_mem[df_mem["rep"]]
+        dfs.append(df_mem)
+
+    # Backwards compatibility
+    if file_csv.exists() and not file_disk_csv.exists() and not file_memory_csv.exists():
+        df_file = pd.read_csv(file_csv)
+        df_file = df_file[df_file["rep"]]
+        dfs.append(df_file)
+
+    if not dfs:
+        print(f"Error: No CSV files found in {run_dir}")
         sys.exit(1)
 
-    net_df = pd.read_csv(net_csv)
-    file_df = pd.read_csv(file_csv)
-    df = pd.concat([net_df, file_df], ignore_index=True)
+    df = pd.concat(dfs, ignore_index=True)
 
     return df
 
@@ -85,19 +112,19 @@ def compute_throughput_stats(df: pd.DataFrame) -> pd.DataFrame:
     return thr_stats
 
 
-def compute_median_transfer_time(df: pd.DataFrame) -> pd.DataFrame:
+def compute_transfer_time_stats(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Compute median transfer time by method and size for comparison.
+    Compute transfer time mean and std deviation by method and size for comparison.
 
     Returns:
-        DataFrame with columns: method, size_bytes, elapsed_ms
+        DataFrame with columns: method, size_bytes, mean, std
     """
-    median_time = (
+    transfer_stats = (
         df.groupby(["method", "size_bytes"])["elapsed_ms"]
-        .median()
+        .agg(["mean", "std"])
         .reset_index()
     )
-    return median_time
+    return transfer_stats
 
 
 # ============================================================================
@@ -159,7 +186,7 @@ def plot_latency_percentiles(percentiles: pd.DataFrame, output_dir: Path) -> Non
     plt.xscale("log", base=2)
     plt.xlabel("Payload size (bytes, log scale)", fontsize=11)
     plt.ylabel("Latency (ms)", fontsize=11)
-    plt.title("Latency Percentiles vs Payload Size", fontsize=13, fontweight="bold")
+    plt.title("Latency Percentiles vs Payload Size (n=20)", fontsize=13, fontweight="bold")
     plt.grid(True, which="both", linestyle=":", alpha=0.4)
     plt.legend(loc="best", fontsize=10)
     plt.tight_layout()
@@ -200,7 +227,7 @@ def plot_throughput(thr_stats: pd.DataFrame, output_dir: Path) -> None:
     plt.xscale("log", base=2)
     plt.xlabel("Payload size (bytes, log scale)", fontsize=11)
     plt.ylabel("Throughput (MiB/s)", fontsize=11)
-    plt.title("Throughput vs Payload Size (mean ± 1σ)", fontsize=13, fontweight="bold")
+    plt.title("Throughput vs Payload Size (mean ± 1σ, n=20,)", fontsize=13, fontweight="bold")
     plt.grid(True, which="both", linestyle=":", alpha=0.4)
     plt.legend(loc="best", fontsize=10)
     plt.tight_layout()
@@ -211,42 +238,61 @@ def plot_throughput(thr_stats: pd.DataFrame, output_dir: Path) -> None:
     plt.close()
 
 
-def plot_transfer_time_comparison(median_time: pd.DataFrame, output_dir: Path) -> None:
+def plot_transfer_time_comparison(transfer_stats: pd.DataFrame, output_dir: Path) -> None:
     """
-    Plot transfer time as a grouped bar chart comparing network vs file methods.
+    Plot transfer time as a grouped bar chart with error bars comparing methods.
 
     What this shows:
     - Side-by-side bars comparing network vs file I/O for each data size
+    - Center of bar: Average (mean) transfer time
+    - Error bars: Standard deviation showing consistency
+      - Short error bars = consistent performance
+      - Long error bars = high variability between runs
     - Shorter bar = faster transfer
     - Direct visual comparison makes it easy to see which method is better for each size
 
     This is the clearest way to compare performance directly between methods.
     """
-    pivot_data = median_time.pivot(
-        index="size_bytes", columns="method", values="elapsed_ms"
+    # Pivot data for grouped bar chart
+    pivot_mean = transfer_stats.pivot(
+        index="size_bytes", columns="method", values="mean"
+    )
+    pivot_std = transfer_stats.pivot(
+        index="size_bytes", columns="method", values="std"
     )
 
     fig, ax = plt.subplots(figsize=(11, 6))
 
-    x = np.arange(len(pivot_data.index))
-    width = 0.35
+    x = np.arange(len(pivot_mean.index))
+    width = 0.25  # Narrower bars for 3 methods
 
-    colors = ["#1f77b4", "#ff7f0e"]
-    for i, method in enumerate(pivot_data.columns):
+    colors = ["#1f77b4", "#ff7f0e", "#2ca02c"]  # blue, orange, green
+    for i, method in enumerate(pivot_mean.columns):
+        offset = (i - len(pivot_mean.columns) / 2 + 0.5) * width
+
+        # Calculate asymmetric error bars to prevent going below 0
+        means = pivot_mean[method].values
+        stds = pivot_std[method].values
+        yerr_lower = np.minimum(means, stds)  # Don't go below 0
+        yerr_upper = stds
+
         ax.bar(
-            x + (i - 0.5) * width,
-            pivot_data[method],
+            x + offset,
+            means,
             width,
+            yerr=[yerr_lower, yerr_upper],
             label=method,
-            color=colors[i],
+            color=colors[i % len(colors)],
             alpha=0.8,
+            capsize=3,
+            error_kw={'linewidth': 1.5, 'alpha': 0.7}
         )
 
     # Format x-axis with human-readable sizes
-    size_labels = [format_bytes(size) for size in pivot_data.index]
+    size_labels = [format_bytes(size) for size in pivot_mean.index]
     ax.set_xlabel("Data Size", fontsize=11)
     ax.set_ylabel("Transfer Time (ms)", fontsize=11)
-    ax.set_title("Transfer Time Comparison: Network vs File I/O\n(Median transfer time per data size)",
+    ax.set_title("Transfer Time Comparison: Network vs File I/O\n(Mean ± 1σ, n=20 per size)",
                  fontsize=13, fontweight="bold")
     ax.set_xticks(x)
     ax.set_xticklabels(size_labels)
@@ -281,13 +327,13 @@ def main():
     print("Computing aggregations...")
     percentiles = compute_latency_percentiles(df)
     thr_stats = compute_throughput_stats(df)
-    median_time = compute_median_transfer_time(df)
+    transfer_stats = compute_transfer_time_stats(df)
 
     # Generate plots
     print("Generating plots...\n")
     plot_latency_percentiles(percentiles, output_dir)
     plot_throughput(thr_stats, output_dir)
-    plot_transfer_time_comparison(median_time, output_dir)
+    plot_transfer_time_comparison(transfer_stats, output_dir)
 
     print(f"\n✅ All plots saved to: {output_dir}")
 
