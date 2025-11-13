@@ -144,45 +144,60 @@ def plot_latency_percentiles(percentiles: pd.DataFrame, output_dir: Path) -> Non
     """
     Plot latency percentiles (p50, p95, p99) across payload sizes.
 
-    What this shows:
-    - p50 (median): Half of the transfers were faster, half slower than this time
-    - p95: 95% of transfers were faster than this time (5% were slower)
-    - p99: 99% of transfers were faster than this time (1% worst-case outliers)
-
-    This reveals the distribution and variability of transfer times, not just averages.
+    Styling: one base color per method with lighter shades for higher percentiles
+    to make the diagram easier to interpret.
     """
+    import matplotlib.colors as mcolors
+
+    def lighten(color: str, amount: float) -> tuple:
+        """Lighten a color by blending it with white.
+        amount in [0, 1]: 0 = original, 1 = white.
+        """
+        r, g, b = mcolors.to_rgb(color)
+        return (1 - amount) * r + amount * 1.0, (1 - amount) * g + amount * 1.0, (1 - amount) * b + amount * 1.0
+
+    # Choose distinct base colors for each method
+    base_colors = {
+        "file-disk": "#1f77b4",   # blue
+        "file-memory": "#d62728", # red
+        "net": "#2ca02c",        # green
+    }
+
+    # Percentile-specific style: darker for p50, lighter for p95/p99
+    pct_styles = {
+        "p50": {"lighten": 0.0, "linestyle": "-",  "marker": "o", "label": "p50 (median)"},
+        "p95": {"lighten": 0.35, "linestyle": "--", "marker": "s", "label": "p95"},
+        "p99": {"lighten": 0.6, "linestyle": ":",  "marker": "^", "label": "p99"},
+    }
+
     plt.figure(figsize=(10, 6))
 
+    # Ensure consistent plotting order by method
     for method, sub in percentiles.groupby("method"):
         sub = sub.sort_values("size_bytes")
-        plt.plot(
-            sub["size_bytes"],
-            sub["p50"],
-            marker="o",
-            linewidth=2,
-            label=f"{method} p50 (median)",
-        )
-        plt.plot(
-            sub["size_bytes"],
-            sub["p95"],
-            marker="s",
-            linestyle="--",
-            linewidth=1.5,
-            label=f"{method} p95",
-        )
-        plt.plot(
-            sub["size_bytes"],
-            sub["p99"],
-            marker="^",
-            linestyle=":",
-            linewidth=1.5,
-            label=f"{method} p99",
-        )
+        base = base_colors.get(method, None)
+        if base is None:
+            # fall back to current rc cycle color
+            base = plt.gca()._get_lines.get_next_color()
+
+        for pct_key in ["p50", "p95", "p99"]:
+            style = pct_styles[pct_key]
+            color = lighten(base, style["lighten"]) if style["lighten"] > 0 else base
+            plt.plot(
+                sub["size_bytes"],
+                sub[pct_key],
+                marker=style["marker"],
+                linestyle=style["linestyle"],
+                linewidth=2 if pct_key == "p50" else 1.7,
+                markersize=6,
+                color=color,
+                label=f"{method} {style['label']}",
+            )
 
     plt.xscale("log", base=2)
     plt.xlabel("Payload size (bytes, log scale)", fontsize=11)
     plt.ylabel("Latency (ms)", fontsize=11)
-    plt.title("Latency Percentiles vs Payload Size (n=20)", fontsize=13, fontweight="bold")
+    plt.title("Latency Percentiles vs Payload Size (n=20)\n(color per method, shade per percentile)", fontsize=13, fontweight="bold")
     plt.grid(True, which="both", linestyle=":", alpha=0.4)
     plt.legend(loc="best", fontsize=10)
     plt.tight_layout()
@@ -223,7 +238,7 @@ def plot_throughput(thr_stats: pd.DataFrame, output_dir: Path) -> None:
     plt.xscale("log", base=2)
     plt.xlabel("Payload size (bytes, log scale)", fontsize=11)
     plt.ylabel("Throughput (MiB/s)", fontsize=11)
-    plt.title("Throughput vs Payload Size (mean ± 1σ, n=20,)", fontsize=13, fontweight="bold")
+    plt.title("Throughput vs Payload Size (mean ± 1σ, n=20)", fontsize=13, fontweight="bold")
     plt.grid(True, which="both", linestyle=":", alpha=0.4)
     plt.legend(loc="best", fontsize=10)
     plt.tight_layout()

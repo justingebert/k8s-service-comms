@@ -1,35 +1,43 @@
-# K8s, Helm, Rancher
+# Kubernetes Service Communication Benchmark
 
-This is a documentation of my path in exploring, experimenting and learning Kubernetes (K8s), Helm, and Rancher.
+Benchmark comparing service communication methods in Kubernetes:
+- **Network**: HTTP communication via ClusterIP Service
+- **File I/O (disk)**: Shared emptyDir volume on disk
+- **File I/O (memory)**: Shared emptyDir volume in memory
 
-## 1. Introduction
-- follow https://kubernetes.io/docs/tutorials/
-- ways of running k8s: minikube, kind, kubeadm
-- start with minikube for local testing
-- kubectl to communicate with k8s cluster 
-- deploy fullstack app to local k8s cluster
+## Architecture
 
-### Notes:
-- deployment: manages an instance of an application, ensures desired state inside the cluster
-- service: exposes deployment to external network
-    - allows for pods to die and be recreated without affecting access to the application because it routes traffic and abstracts away the pods
-- pod: group of one or more application containers, it includes shared storage, IP address and information about how to run.
-    - Containers should only be scheduled together in a single Pod if they are tightly coupled and need to share resources such as disk.
-- configMap: used to store non-confidential data in key-value pairs.
-    - as volumes updates on pull
-    - as env vars only updates on restart of pod
-- minikube needs a tunnel to expose services with type LoadBalancer
+### Kubernetes Deployment
 
-## 2. Testing Service Communication
+**Network-based (Inter-Pod Communication)**
 
-The Goal is to Measure and compare service communication in Kubernetes using two approaches:
+![Network Architecture](results/architecture/network_arch.png)
 
-- Services in separate Pods communicating over the network via a ClusterIP Service.
-- Service containers in one Pod communicating via the filesystem.
+Two separate pods communicate via a Kubernetes Service (ClusterIP). The sender pod makes HTTP requests to the receiver pod through the service, which provides load balancing and service discovery.
 
-[//]: # (Visualization: [Figma]&#40;https://www.figma.com/board/sQk6dhJdW9P3uDKgH0IYtA/k8s-Testing?node-id=0-1&t=R43z4tdKJkp8gHjj-1&#41;)
+**File-based (Intra-Pod Communication)**
 
-Setup shared vol:
+![File Architecture](results/architecture/file_arch.png)
+
+Both containers run in the same pod and share an emptyDir volume. Writer and reader containers communicate by writing and reading files from the shared volume.
+
+### Communication Flow
+
+Network communication:
+```mermaid
+sequenceDiagram
+    participant Sender
+    participant Receiver
+    
+    Note over Sender: t0 = hrtime()
+    Sender->>Receiver: HTTP POST /upload
+    activate Receiver
+    Receiver-->>Sender: HTTP 200 OK
+    deactivate Receiver
+    Note over Sender: Δt = hrtime() - t0
+```
+
+File I/O communication:
 ```mermaid
 sequenceDiagram
     participant Writer
@@ -44,50 +52,67 @@ sequenceDiagram
     Reader->>Volume: write(ack)
     Volume-->>Writer: fs event: ack
     Note over Writer: Δt = hrtime() - t0
-
 ```
 
-setup network:
-```mermaid
-sequenceDiagram
-    participant Sender
-    participant Receiver
-    
-    Note over Sender: t0 = hrtime()
-    
-    Sender->>Receiver: HTTP POST /upload
-    
-    activate Receiver
-    
-    Receiver-->>Sender: HTTP 200 OK
-    deactivate Receiver
-    
-    Note over Sender: Δt = hrtime() - t0
+## Benchmark Configuration
+
+- **Payload sizes**: 1KB to 8MB (14 sizes, doubling each step)
+- **Repetitions**: 20 per size (including first rep to measure cold-start effects)
+- **Data format**: Repeated character 'x'
+- **Metrics**: Transfer time, latency (median, p95, p99), throughput 
+- **Statistics**: Mean with standard deviation
+
+## Setup
+
+Requirements:
+- Minikube or local Kubernetes cluster
+- Docker
+- Node.js (for benchmark scripts)
+- Python 3 with matplotlib, pandas, numpy (for visualization)
+
+## Usage
+
+```bash
+# Build images and run complete benchmark
+make all
+
+# Individual steps
+make build          # Build Docker images in Minikube
+make deploy-net     # Deploy network benchmark
+make deploy-file    # Deploy file I/O benchmarks
+make run-sender     # Start network benchmark
+make collect        # Collect results to CSV
+make plot           # Generate plots
+
+# Cleanup
+make destroy
 ```
-To Measure this the data for benchmarking will be doubled for every iteration.
 
+## Results
 
-add more metrics:
-- latency
-- throughput
-- cpu
-- memory
-- i/o
-- bytes transferred
+Latest benchmark results are saved to `results/runs/YYMMDD_HHMM_*/` with:
+- Raw CSV data
+- Generated plots (latency percentiles, throughput, transfer time comparison)
 
-Also interesting would be to look into what happens during failures, scaling and rollouts.
+## Current Results
 
-## questions
+### Latency Percentiles
+Shows p50 (median), p95, and p99 latency across payload sizes. Each method uses one base color with lighter shades for higher percentiles.
 
-What data will I use?
-- repeated character x, maybe change to random later
-- format: text
-- size steps: 64 B, 1 KiB, 2 KiB, 4 KiB, 8 KiB, ...
-  … 512 KiB, 1 MiB, 2 MiB, 4 MiB, 8 MiB, 16 MiB 
+![Latency Percentiles](results/runs/251112_2153_same-node_http8080_emptyDirDisk/plots/latency_percentiles.png)
 
-Validity of data:
-- timing on different nodes might drift
+### Throughput
+Average throughput with standard deviation across payload sizes.
 
-## Common issues:
-image not found:
-eval $(minikube docker-env)
+![Throughput](results/runs/251112_2153_same-node_http8080_emptyDirDisk/plots/throughput.png)
+
+### Transfer Time Comparison
+Direct comparison of mean transfer times with standard deviation error bars.
+
+![Transfer Time Comparison](results/runs/251112_2153_same-node_http8080_emptyDirDisk/plots/transfer_time_comparison.png)
+
+## Notes
+
+- Standard deviation used to show performance variability
+- All images built in Minikube's Docker daemon using `eval $(minikube docker-env)`
+
