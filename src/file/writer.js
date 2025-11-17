@@ -1,76 +1,76 @@
-import fs from "node:fs";
 import fsp from "node:fs/promises";
 import path from "node:path";
+import { CONFIG, getBenchmarkSizes } from "../common/config.js";
+import { calculateThroughput, logResult } from "../common/utils.js";
 
-const DATA_DIR = process.env.DATA_DIR || "/data";
-const REPS = Number(process.env.REPS || "5");
-const DURABLE = (process.env.DURABLE ?? "true").toLowerCase() !== "false";
-const STORAGE_MEDIUM = process.env.STORAGE_MEDIUM || "unknown";
+const DATA_DIR = CONFIG.file.dataDir;
+const READY_SIGNAL = path.join(DATA_DIR, ".reader-ready");
+
+// Simple wait for reader to be ready (no logs to keep CSV clean)
+while (true) {
+    try {
+        await fsp.access(READY_SIGNAL);
+        break;
+    } catch {
+        await new Promise(r => setTimeout(r, 100));
+    }
+}
 
 console.log("method,size_bytes,rep,elapsed_ms,throughput_mib_s");
 
-async function exists(p) {
-    try { await fsp.access(p, fs.constants.F_OK); return true; } catch { return false; }
-}
-
-function waitForFile(filePath) {
-    return new Promise(async (resolve, reject) => {
-        if (await exists(filePath)) return resolve();
-        const dir = path.dirname(filePath);
-        const name = path.basename(filePath);
-        const watcher = fs.watch(dir, (eventType, filename) => {
-            if (!filename) return;
-            if (filename === name && (eventType === "rename" || eventType === "change")) {
-                exists(filePath).then(found => {
-                    if (found) { try { watcher.close(); } catch {} resolve(); }
-                });
-            }
-        });
-        watcher.on("error", err => { try { watcher.close(); } catch {} reject(err); });
-    });
-}
-
-for (const size of getSizesFromEnv()) {
+for (const size of getBenchmarkSizes()) {
     const payload = Buffer.alloc(size, 0x78); // repeated 'x'
-    for (let r = 1; r <= REPS; r++) {
+
+    for (let r = 1; r <= CONFIG.benchmark.reps; r++) {
         const tmp = path.join(DATA_DIR, "payload.tmp");
         const ready = path.join(DATA_DIR, "payload.ready");
         const ack = path.join(DATA_DIR, "ack");
 
-        // clean up
-        for (const p of [tmp, ready, ack]) { try { await fsp.unlink(p); } catch {} }
+        // Clean up any leftover files
+        for (const p of [tmp, ready, ack]) {
+            try {
+                await fsp.unlink(p);
+            } catch {
+            }
+        }
 
         const t0 = process.hrtime.bigint();
 
+        // Write payload to temp file
         const fd = await fsp.open(tmp, "w");
         try {
             await fd.write(payload, 0, payload.length, 0);
-            if (DURABLE) await fd.sync();
+            if (CONFIG.file.durable) {
+                await fd.sync();
+            }
         } finally {
             await fd.close();
         }
 
-        // atomic rename → reader sees it
+        // Atomic rename → reader sees it
         await fsp.rename(tmp, ready);
 
-        // wait for ACK (event-driven, no busy loop)
-        await waitForFile(ack);
+        // Wait for ACK (simple poll, fast path)
+        while (true) {
+            try {
+                await fsp.access(ack);
+                break;
+            } catch {
+                await new Promise(r => setTimeout(r, 1)); // 1ms poll
+            }
+        }
 
         const dtMs = Number(process.hrtime.bigint() - t0) / 1e6;
-        const mib = size / (1024 * 1024);
-        const thr = mib / (dtMs / 1000);
-        console.log(`file-${STORAGE_MEDIUM},${size},${r},${dtMs.toFixed(3)},${thr.toFixed(3)}`);
-        // console.log(`FILE size=${size}B rep=${r}/${REPS} time=${dtMs.toFixed(3)}ms thr=${thr.toFixed(3)}MiB/s`);
+        const thr = calculateThroughput(size, dtMs);
+        logResult(`file-${CONFIG.file.storageMedium}`, size, r, dtMs, thr);
 
-        for (const p of [ready, ack]) { try { await fsp.unlink(p); } catch {} }
+        // Clean up
+        for (const p of [ready, ack]) {
+            try {
+                await fsp.unlink(p);
+            } catch {
+            }
+        }
     }
 }
 
-function getSizesFromEnv() {
-    const sizesEnv = process.env.SIZES?.trim();
-    if (!sizesEnv) throw new Error("SIZES env var must be set (comma-separated numbers)");
-    return sizesEnv
-        .split(",")
-        .map(s => Number(s.trim()))
-        .filter(n => !Number.isNaN(n) && n > 0);
-}

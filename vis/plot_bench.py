@@ -194,8 +194,13 @@ def plot_latency_percentiles(percentiles: pd.DataFrame, output_dir: Path) -> Non
                 label=f"{method} {style['label']}",
             )
 
+    # Get unique sizes and format as human-readable labels
+    unique_sizes = sorted(percentiles["size_bytes"].unique())
+    size_labels = [format_bytes(size) for size in unique_sizes]
+
     plt.xscale("log", base=2)
-    plt.xlabel("Payload size (bytes, log scale)", fontsize=11)
+    plt.xticks(unique_sizes, size_labels)
+    plt.xlabel("Data Size", fontsize=11)
     plt.ylabel("Latency (ms)", fontsize=11)
     plt.title("Latency Percentiles vs Payload Size (n=20)\n(color per method, shade per percentile)", fontsize=13, fontweight="bold")
     plt.grid(True, which="both", linestyle=":", alpha=0.4)
@@ -235,8 +240,13 @@ def plot_throughput(thr_stats: pd.DataFrame, output_dir: Path) -> None:
             label=method,
         )
 
+    # Get unique sizes and format as human-readable labels
+    unique_sizes = sorted(thr_stats["size_bytes"].unique())
+    size_labels = [format_bytes(size) for size in unique_sizes]
+
     plt.xscale("log", base=2)
-    plt.xlabel("Payload size (bytes, log scale)", fontsize=11)
+    plt.xticks(unique_sizes, size_labels)
+    plt.xlabel("Data Size", fontsize=11)
     plt.ylabel("Throughput (MiB/s)", fontsize=11)
     plt.title("Throughput vs Payload Size (mean ± 1σ, n=20)", fontsize=13, fontweight="bold")
     plt.grid(True, which="both", linestyle=":", alpha=0.4)
@@ -251,15 +261,15 @@ def plot_throughput(thr_stats: pd.DataFrame, output_dir: Path) -> None:
 
 def plot_transfer_time_comparison(transfer_stats: pd.DataFrame, output_dir: Path) -> None:
     """
-    Plot transfer time as a grouped bar chart with error bars comparing methods.
+    Plot latency as a grouped bar chart with error bars comparing methods.
 
     What this shows:
     - Side-by-side bars comparing network vs file I/O for each data size
-    - Center of bar: Average (mean) transfer time
+    - Center of bar: Average (mean) latency
     - Error bars: Standard deviation showing consistency
       - Short error bars = consistent performance
       - Long error bars = high variability between runs
-    - Shorter bar = faster transfer
+    - Shorter bar = lower latency (faster)
     - Direct visual comparison makes it easy to see which method is better for each size
 
     This is the clearest way to compare performance directly between methods.
@@ -293,7 +303,7 @@ def plot_transfer_time_comparison(transfer_stats: pd.DataFrame, output_dir: Path
             width,
             yerr=[yerr_lower, yerr_upper],
             label=method,
-            color=colors[i % len(colors)],
+            color=colors[i],
             alpha=0.8,
             capsize=3,
             error_kw={'linewidth': 1.5, 'alpha': 0.7}
@@ -302,8 +312,8 @@ def plot_transfer_time_comparison(transfer_stats: pd.DataFrame, output_dir: Path
     # Format x-axis with human-readable sizes
     size_labels = [format_bytes(size) for size in pivot_mean.index]
     ax.set_xlabel("Data Size", fontsize=11)
-    ax.set_ylabel("Transfer Time (ms)", fontsize=11)
-    ax.set_title("Transfer Time Comparison: Network vs File I/O\n(Mean ± 1σ, n=20 per size)",
+    ax.set_ylabel("Latency (ms)", fontsize=11)
+    ax.set_title("Latency Comparison: Network vs File I/O\n(Mean ± 1σ, n=20 per size)",
                  fontsize=13, fontweight="bold")
     ax.set_xticks(x)
     ax.set_xticklabels(size_labels)
@@ -312,7 +322,7 @@ def plot_transfer_time_comparison(transfer_stats: pd.DataFrame, output_dir: Path
 
     plt.tight_layout()
 
-    output_path = output_dir / "transfer_time_comparison.png"
+    output_path = output_dir / "latency_comparison.png"
     plt.savefig(output_path, dpi=150, bbox_inches="tight")
     print(f"✓ Saved: {output_path.name}")
     plt.close()

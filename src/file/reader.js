@@ -1,57 +1,73 @@
-import fs from "node:fs";
 import fsp from "node:fs/promises";
 import path from "node:path";
+import { CONFIG } from "../common/config.js";
+import { exists } from "../common/utils.js";
 
-const DATA_DIR = process.env.DATA_DIR || "/data";
+const DATA_DIR = CONFIG.file.dataDir;
 const READY_FILE = path.join(DATA_DIR, "payload.ready");
 const ACK_FILE = path.join(DATA_DIR, "ack");
-
-async function exists(p) {
-  try { await fsp.access(p, fs.constants.F_OK); return true; } catch { return false; }
-}
+const READY_SIGNAL = path.join(DATA_DIR, ".reader-ready");
 
 async function consumeReadyAndAck() {
-  // consume the entire file in 1 MiB chunks
-  const fh = await fsp.open(READY_FILE, "r");
-  try {
-    const buf = Buffer.alloc(1024 * 1024);
-    while (true) {
-      const { bytesRead } = await fh.read(buf, 0, buf.length, null);
-      if (bytesRead === 0) break;
-    }
-  } finally {
-    await fh.close();
-  }
+    try {
+        const fh = await fsp.open(READY_FILE, "r");
+        try {
+            const buf = Buffer.alloc(CONFIG.file.chunkSize);
+            while (true) {
+                const {bytesRead} = await fh.read(buf, 0, buf.length, null);
+                if (bytesRead === 0) break;
+            }
+        } finally {
+            await fh.close();
+        }
 
-  // write ACK via atomic rename to reliably trigger a rename event
-  const ackTmp = `${ACK_FILE}.tmp`;
-  await fsp.writeFile(ackTmp, "ok");
-  await fsp.rename(ackTmp, ACK_FILE);
+        const ackTmp = `${ACK_FILE}.tmp`;
+        await fsp.writeFile(ackTmp, "ok");
+        await fsp.rename(ackTmp, ACK_FILE);
+    } catch (err) {
+        console.error("Error processing file:", err);
+        throw err;
+    }
 }
 
-// Event-driven loop: react to READY_FILE appearance
-(async () => {
-  // If a file is already present at startup, handle it immediately.
-  if (await exists(READY_FILE)) {
-    try { await consumeReadyAndAck(); } catch (e) { console.error("reader error (startup):", e); }
-  }
+console.error("Reader starting up...");
 
-  // Watch the directory for new ready files
-  while (true) {
+try {
+    await fsp.mkdir(DATA_DIR, {recursive: true});
+} catch {
+}
+
+await fsp.writeFile(READY_SIGNAL, "ready");
+console.error("Reader ready, watching for files");
+
+if (await exists(READY_FILE)) {
     try {
-      for await (const evt of fsp.watch(DATA_DIR)) {
-        const { eventType, filename } = evt;
-        if (!filename) continue;
-        if (filename === path.basename(READY_FILE) && (eventType === "rename" || eventType === "change")) {
-          if (await exists(READY_FILE)) {
-            try { await consumeReadyAndAck(); } catch (e) { console.error("reader error:", e); }
-          }
-        }
-      }
+        await consumeReadyAndAck();
     } catch (e) {
-      console.error("reader watcher error, restarting watcher:", e);
-      // small delay before re-establishing the watcher
-      await new Promise(r => setTimeout(r, 50));
+        console.error("Reader error (startup):", e);
     }
-  }
-})();
+}
+
+while (true) {
+    try {
+        for await (const evt of fsp.watch(DATA_DIR)) {
+            const {eventType, filename} = evt;
+            if (!filename) continue;
+
+            if (filename === path.basename(READY_FILE) &&
+                (eventType === "rename" || eventType === "change")) {
+                if (await exists(READY_FILE)) {
+                    try {
+                        await consumeReadyAndAck();
+                    } catch (e) {
+                        console.error("Reader error:", e);
+                    }
+                }
+            }
+        }
+    } catch (e) {
+        console.error("Reader watcher error, restarting watcher:", e);
+        await new Promise(r => setTimeout(r, 50));
+    }
+}
+

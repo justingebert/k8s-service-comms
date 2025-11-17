@@ -1,30 +1,42 @@
-const HOST = process.env.HOST || "net-svc";
-const PORT = Number(process.env.PORT || "8080");
-const REPS = Number(process.env.REPS || "5");
-const url = `http://${HOST}:${PORT}/upload`;
+import crypto from "node:crypto";
+import { CONFIG, getBenchmarkSizes } from "../common/config.js";
+import { calculateThroughput, logResult } from "../common/utils.js";
+
+const url = `http://${CONFIG.net.host}:${CONFIG.net.port}/upload`;
 
 console.log("method,size_bytes,rep,elapsed_ms,throughput_mib_s");
 
-for (const size of getSizesFromEnv()) {
+for (const size of getBenchmarkSizes()) {
     const payload = Buffer.alloc(size, 0x78); // repeated 'x'
-    for (let r = 1; r <= REPS; r++) {
+    const expectedHash = crypto.createHash("sha256").update(payload).digest("hex");
+
+    for (let r = 1; r <= CONFIG.benchmark.reps; r++) {
         const t0 = process.hrtime.bigint();
-        const resp = await fetch(url, { method: "POST", body: payload });
-        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-        await resp.arrayBuffer(); // ensure full response
+
+        const resp = await fetch(url, {
+            method: "POST",
+            body: payload,
+            signal: AbortSignal.timeout(CONFIG.net.timeout),
+        });
+
+        if (!resp.ok) {
+            throw new Error(`HTTP ${resp.status}`);
+        }
+
+        const result = await resp.json();
+
+        // Validate response
+        if (result.len !== payload.length) {
+            throw new Error(`Size mismatch: sent ${payload.length}, received ${result.len}`);
+        }
+
+        if (result.hash !== expectedHash) {
+            throw new Error("Checksum mismatch");
+        }
+
         const dtMs = Number(process.hrtime.bigint() - t0) / 1e6;
-        const mib = size / (1024 * 1024);
-        const thr = mib / (dtMs / 1000);
-        console.log(`net,${size},${r},${dtMs.toFixed(3)},${thr.toFixed(3)}`);
-        // console.log(`NET size=${size}B rep=${r}/${REPS} time=${dtMs.toFixed(3)}ms thr=${thr.toFixed(3)}MiB/s`);
+        const thr = calculateThroughput(size, dtMs);
+        logResult("net", size, r, dtMs, thr);
     }
 }
 
-function getSizesFromEnv() {
-    const sizesEnv = process.env.SIZES?.trim();
-    if (!sizesEnv) throw new Error("SIZES env var must be set (comma-separated numbers)");
-    return sizesEnv
-        .split(",")
-        .map(s => Number(s.trim()))
-        .filter(n => !Number.isNaN(n) && n > 0);
-}
