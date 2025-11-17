@@ -96,20 +96,22 @@ Latest benchmark results are saved to `results/runs/YYMMDD_HHMM_*/` with:
 
 ## Current Results
 
+### Latency Comparison
+Direct comparison of mean transfer times with standard deviation error bars.
+
+![Transfer Time Comparison](results/runs/251117_1511_same-node_http8080_emptyDir/plots/latency_comparison.png)
+
+
 ### Latency Percentiles
 Shows p50 (median), p95, and p99 latency across payload sizes. Each method uses one base color with lighter shades for higher percentiles.
 
-![Latency Percentiles](results/runs/251112_2153_same-node_http8080_emptyDirDisk/plots/latency_percentiles.png)
+![Latency Percentiles](results/runs/251117_1511_same-node_http8080_emptyDir/plots/latency_percentiles.png)
 
 ### Throughput
 Average throughput with standard deviation across payload sizes.
 
-![Throughput](results/runs/251112_2153_same-node_http8080_emptyDirDisk/plots/throughput.png)
+![Throughput](results/runs/251117_1511_same-node_http8080_emptyDir/plots/throughput.png)
 
-### Transfer Time Comparison
-Direct comparison of mean transfer times with standard deviation error bars.
-
-![Transfer Time Comparison](results/runs/251112_2153_same-node_http8080_emptyDirDisk/plots/transfer_time_comparison.png)
 
 ## Notes
 
