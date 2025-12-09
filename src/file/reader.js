@@ -1,4 +1,5 @@
 import fsp from "node:fs/promises";
+import fs from "node:fs";
 import path from "node:path";
 import { CONFIG } from "../common/config.js";
 import { exists } from "../common/utils.js";
@@ -14,7 +15,7 @@ async function consumeReadyAndAck() {
         try {
             const buf = Buffer.alloc(CONFIG.file.chunkSize);
             while (true) {
-                const {bytesRead} = await fh.read(buf, 0, buf.length, null);
+                const { bytesRead } = await fh.read(buf, 0, buf.length, null);
                 if (bytesRead === 0) break;
             }
         } finally {
@@ -33,13 +34,14 @@ async function consumeReadyAndAck() {
 console.error("Reader starting up...");
 
 try {
-    await fsp.mkdir(DATA_DIR, {recursive: true});
+    await fsp.mkdir(DATA_DIR, { recursive: true });
 } catch {
 }
 
 await fsp.writeFile(READY_SIGNAL, "ready");
 console.error("Reader ready, watching for files");
 
+// Process any file that exists at startup
 if (await exists(READY_FILE)) {
     try {
         await consumeReadyAndAck();
@@ -48,26 +50,45 @@ if (await exists(READY_FILE)) {
     }
 }
 
-while (true) {
-    try {
-        for await (const evt of fsp.watch(DATA_DIR)) {
-            const {eventType, filename} = evt;
-            if (!filename) continue;
+// Flag to signal when we should check for files
+let shouldCheck = false;
+let processing = false;
 
-            if (filename === path.basename(READY_FILE) &&
-                (eventType === "rename" || eventType === "change")) {
-                if (await exists(READY_FILE)) {
-                    try {
-                        await consumeReadyAndAck();
-                    } catch (e) {
-                        console.error("Reader error:", e);
-                    }
-                }
-            }
+// Process files in a loop, checking after each processing completes
+async function processLoop() {
+    while (true) {
+        // Wait for signal if no pending check
+        if (!shouldCheck) {
+            await new Promise(r => setTimeout(r, 5));
+            continue;
         }
-    } catch (e) {
-        console.error("Reader watcher error, restarting watcher:", e);
-        await new Promise(r => setTimeout(r, 50));
+
+        shouldCheck = false;
+
+        if (await exists(READY_FILE)) {
+            processing = true;
+            try {
+                await consumeReadyAndAck();
+            } catch (e) {
+                console.error("Reader error:", e);
+            }
+            processing = false;
+            // Re-check after processing in case we missed an event
+            shouldCheck = true;
+        }
     }
 }
 
+// Start the processing loop
+processLoop();
+
+fs.watch(DATA_DIR, (eventType, filename) => {
+    if (!filename) return;
+    if (filename === path.basename(READY_FILE) &&
+        (eventType === "rename" || eventType === "change")) {
+        shouldCheck = true;
+    }
+});
+
+// Keep the process alive
+setInterval(() => { }, 60000);
