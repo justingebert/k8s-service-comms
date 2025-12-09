@@ -7,7 +7,7 @@ const url = `http://${CONFIG.net.host}:${CONFIG.net.port}/upload`;
 console.log("method,size_bytes,rep,elapsed_ms,throughput_mib_s");
 
 for (const size of getBenchmarkSizes()) {
-    const payload = Buffer.alloc(size, 0x78); // repeated 'x'
+    const payload = crypto.randomBytes(size);
     const expectedHash = crypto.createHash("sha256").update(payload).digest("hex");
 
     for (let r = 1; r <= CONFIG.benchmark.reps; r++) {

@@ -12,6 +12,7 @@ build:
 
 destroy:
 	kubectl delete -R -f k8s/ --ignore-not-found
+	kubectl wait --for=delete pod --all --timeout=300s || true
 
 apply:
 	kubectl apply -R -f k8s/
@@ -77,4 +78,4 @@ collect:
 plot:
 	./.venv/bin/python3 vis/plot_bench.py
 
-all: build apply-config deploy-net deploy-file run-sender wait-sender wait-file-disk wait-file-memory collect plot
+all: destroy build apply-config deploy-net deploy-file run-sender wait-sender wait-file-disk wait-file-memory collect plot

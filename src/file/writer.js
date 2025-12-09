@@ -1,4 +1,6 @@
 import fsp from "node:fs/promises";
+import fs from "node:fs";
+import crypto from "node:crypto";
 import path from "node:path";
 import { CONFIG, getBenchmarkSizes } from "../common/config.js";
 import { calculateThroughput, logResult } from "../common/utils.js";
@@ -19,7 +21,7 @@ while (true) {
 console.log("method,size_bytes,rep,elapsed_ms,throughput_mib_s");
 
 for (const size of getBenchmarkSizes()) {
-    const payload = Buffer.alloc(size, 0x78); // repeated 'x'
+    const payload = crypto.randomBytes(size); // random data to avoid compression bias
 
     for (let r = 1; r <= CONFIG.benchmark.reps; r++) {
         const tmp = path.join(DATA_DIR, "payload.tmp");
@@ -50,15 +52,37 @@ for (const size of getBenchmarkSizes()) {
         // Atomic rename → reader sees it
         await fsp.rename(tmp, ready);
 
-        // Wait for ACK (simple poll, fast path)
-        while (true) {
-            try {
-                await fsp.access(ack);
-                break;
-            } catch {
-                await new Promise(r => setTimeout(r, 1)); // 1ms poll
-            }
-        }
+        // Wait for ACK (no busy-wait)
+        await new Promise((resolve, reject) => {
+            let resolved = false;
+            const watcher = fs.watch(DATA_DIR, (eventType, filename) => {
+                if (resolved) return;
+                if (filename === "ack" && (eventType === "rename" || eventType === "change")) {
+                    fsp.access(ack).then(() => {
+                        if (!resolved) {
+                            resolved = true;
+                            watcher.close();
+                            resolve();
+                        }
+                    }).catch(() => { });
+                }
+            });
+            watcher.on("error", (err) => {
+                if (!resolved) {
+                    resolved = true;
+                    watcher.close();
+                    reject(err);
+                }
+            });
+            // Check after watcher is set up to catch files created before watching
+            fsp.access(ack).then(() => {
+                if (!resolved) {
+                    resolved = true;
+                    watcher.close();
+                    resolve();
+                }
+            }).catch(() => { });
+        });
 
         const dtMs = Number(process.hrtime.bigint() - t0) / 1e6;
         const thr = calculateThroughput(size, dtMs);

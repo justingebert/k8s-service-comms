@@ -1,6 +1,7 @@
 """
 Generate architecture diagrams for benchmark.
 """
+
 import os
 
 from PIL import Image
@@ -8,32 +9,41 @@ from diagrams import Diagram, Cluster, Edge
 from diagrams.k8s.compute import Pod
 from diagrams.k8s.network import Service
 from diagrams.k8s.storage import Volume
+from diagrams.custom import Custom
 
-os.makedirs("../results/architecture", exist_ok=True)
+# Get the directory where this script is located
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+# Go up one level to repo root, then into results/architecture
+OUTPUT_DIR = os.path.join(SCRIPT_DIR, "..", "results", "architecture")
+os.makedirs(OUTPUT_DIR, exist_ok=True)
+
 
 def crop_whitespace(image_path):
     """Remove external whitespace from diagram image without affecting internal layout."""
     img = Image.open(image_path)
 
     # Convert to RGB if needed
-    if img.mode == 'RGBA':
+    if img.mode == "RGBA":
         # Create white background
-        background = Image.new('RGB', img.size, (255, 255, 255))
+        background = Image.new("RGB", img.size, (255, 255, 255))
         background.paste(img, mask=img.split()[3])  # Use alpha channel as mask
         img = background
-    elif img.mode != 'RGB':
-        img = img.convert('RGB')
+    elif img.mode != "RGB":
+        img = img.convert("RGB")
 
     # Convert to numpy for easier processing
     import numpy as np
+
     img_array = np.array(img)
 
     # Create a mask where pixels are NOT white (or near-white)
     # Consider pixels with all RGB values > 250 as "white"
     threshold = 250
-    non_white = (img_array[:, :, 0] < threshold) | \
-                (img_array[:, :, 1] < threshold) | \
-                (img_array[:, :, 2] < threshold)
+    non_white = (
+        (img_array[:, :, 0] < threshold)
+        | (img_array[:, :, 1] < threshold)
+        | (img_array[:, :, 2] < threshold)
+    )
 
     # Find the bounding box of non-white pixels
     rows = np.any(non_white, axis=1)
@@ -53,9 +63,12 @@ def crop_whitespace(image_path):
         # Crop the image
         img_cropped = img.crop((cmin, rmin, cmax, rmax))
         img_cropped.save(image_path)
-        print(f"  Cropped: {os.path.basename(image_path)} from {img.size} to {img_cropped.size}")
+        print(
+            f"  Cropped: {os.path.basename(image_path)} from {img.size} to {img_cropped.size}"
+        )
     else:
         print(f"  No cropping needed: {os.path.basename(image_path)}")
+
 
 graph_attr = {
     # "size": "16,9",
@@ -63,11 +76,13 @@ graph_attr = {
 }
 
 # Network-based architecture
-with Diagram("Network Communication (Inter-Pod)",
-             filename="../results/architecture/network_arch",
-             show=False,
-             direction="LR",
-             graph_attr=graph_attr):
+with Diagram(
+    "Network Communication (Inter-Pod)",
+    filename=os.path.join(OUTPUT_DIR, "network_arch"),
+    show=False,
+    direction="LR",
+    graph_attr=graph_attr,
+):
     with Cluster("Kubernetes Cluster"):
         with Cluster("Sender Pod"):
             sender = Pod("Sender\nContainer")
@@ -77,30 +92,34 @@ with Diagram("Network Communication (Inter-Pod)",
         with Cluster("Receiver Pod"):
             receiver = Pod("Receiver\nContainer")
 
-    sender >> Edge(label="HTTP") >> svc >> Edge(label="Load Balance") >> receiver
+    sender >> Edge(label="HTTP") >> svc >> Edge(label="Routes") >> receiver
 
 # Crop external whitespace
-crop_whitespace("../results/architecture/network_arch.png")
+crop_whitespace(os.path.join(OUTPUT_DIR, "network_arch.png"))
+
+ICON_PATH = os.path.join(OUTPUT_DIR, "container.png")
 
 # File-based architecture
-with Diagram("File Communication (Intra-Pod)",
-             filename="../results/architecture/file_arch",
-             show=False,
-             direction="LR",
-             graph_attr=graph_attr):
+with Diagram(
+    "File Communication (Intra-Pod)",
+    filename=os.path.join(OUTPUT_DIR, "file_arch"),
+    show=False,
+    direction="LR",
+    graph_attr=graph_attr,
+):
     with Cluster("Kubernetes Cluster"):
         with Cluster("Combined Pod"):
-            file_sender = Pod("Sender\nContainer")
+            file_sender = Custom("Sender\nContainer", ICON_PATH)
 
             with Cluster("Shared Volume"):
                 volume = Volume()
 
-            file_receiver = Pod("Receiver\nContainer")
+            file_receiver = Custom("Receiver\nContainer", ICON_PATH)
 
             file_sender >> Edge(label="Write") >> volume
             volume >> Edge(label="Read") >> file_receiver
 
 # Crop external whitespace
-crop_whitespace("../results/architecture/file_arch.png")
+crop_whitespace(os.path.join(OUTPUT_DIR, "file_arch.png"))
 
 print("✅ Architecture diagrams generated in results/architecture/")
