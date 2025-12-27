@@ -16,7 +16,7 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 # Go up one level to repo root, then into results/architecture
 OUTPUT_DIR = os.path.join(SCRIPT_DIR, "..", "results", "architecture")
 os.makedirs(OUTPUT_DIR, exist_ok=True)
-
+ICON_PATH = os.path.join(OUTPUT_DIR, "container.png")
 
 def crop_whitespace(image_path):
     """Remove external whitespace from diagram image without affecting internal layout."""
@@ -77,7 +77,7 @@ graph_attr = {
 
 # Network-based architecture
 with Diagram(
-    "Network Communication (Inter-Pod)",
+    #"Network Communication (Inter-Pod)",
     filename=os.path.join(OUTPUT_DIR, "network_arch"),
     show=False,
     direction="LR",
@@ -97,11 +97,11 @@ with Diagram(
 # Crop external whitespace
 crop_whitespace(os.path.join(OUTPUT_DIR, "network_arch.png"))
 
-ICON_PATH = os.path.join(OUTPUT_DIR, "container.png")
+
 
 # File-based architecture
 with Diagram(
-    "File Communication (Intra-Pod)",
+    #"File Communication (Intra-Pod)",
     filename=os.path.join(OUTPUT_DIR, "file_arch"),
     show=False,
     direction="LR",
@@ -112,7 +112,7 @@ with Diagram(
             file_sender = Custom("Sender\nContainer", ICON_PATH)
 
             with Cluster("Shared Volume"):
-                volume = Volume()
+                volume = Volume("emptyDir")
 
             file_receiver = Custom("Receiver\nContainer", ICON_PATH)
 
@@ -121,5 +121,52 @@ with Diagram(
 
 # Crop external whitespace
 crop_whitespace(os.path.join(OUTPUT_DIR, "file_arch.png"))
+
+
+panel_attr = {
+    "style": "rounded,filled",
+    "color": "gray40",
+    "fillcolor": "gray95",
+    "fontsize": "12",
+    "margin": "16"
+}
+
+with Diagram(
+        filename=os.path.join(OUTPUT_DIR, "architectures"),
+        show=False,
+        direction="LR",
+        graph_attr={
+            **graph_attr,
+            "nodesep": "0.6",
+            "ranksep": "0.8",
+            "pad": "0.2"
+        },
+):
+    # --- Panel (a): Network ---
+    with Cluster("1) Inter-Pod: Service + HTTP/TCP", graph_attr=panel_attr):
+        with Cluster("Sender Pod"):
+            sender = Pod("Sender")
+
+        svc = Service("ClusterIP\nService")
+
+        with Cluster("Receiver Pod"):
+            receiver = Pod("Receiver")
+
+        sender >> Edge(label="HTTP") >> svc >> Edge(label="Routes") >> receiver
+
+    # --- Panel (b): File ---
+    with Cluster("2) Intra-Pod: emptyDir Volume", graph_attr=panel_attr):
+        with Cluster("Combined Pod"):
+            file_sender = Custom("Sender", ICON_PATH)
+
+            with Cluster("Shared Volume"):
+                volume = Volume("emptyDir")
+
+            file_receiver = Custom("Receiver", ICON_PATH)
+
+            file_sender >> Edge(label="Write") >> volume
+            volume >> Edge(label="Read") >> file_receiver
+
+crop_whitespace(os.path.join(OUTPUT_DIR, "architectures.png"))
 
 print("✅ Architecture diagrams generated in results/architecture/")

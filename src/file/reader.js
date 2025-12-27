@@ -59,7 +59,7 @@ async function processLoop() {
     while (true) {
         // Wait for signal if no pending check
         if (!shouldCheck) {
-            await new Promise(r => setTimeout(r, 5));
+            await new Promise(r => setTimeout(r, 1));
             continue;
         }
 
