@@ -120,12 +120,12 @@ def compute_transfer_time_stats(df: pd.DataFrame) -> pd.DataFrame:
 # ============================================================================
 
 def format_bytes(bytes_val: int) -> str:
-    """Format byte size as human-readable string (e.g., 1KB, 1MB)."""
-    for unit in ["B", "KB", "MB", "GB"]:
+    """Format byte size as human-readable string (e.g., 1KiB, 1MiB)."""
+    for unit in ["B", "KiB", "MiB", "GiB"]:
         if bytes_val < 1024:
             return f"{bytes_val:.0f}{unit}"
         bytes_val /= 1024
-    return f"{bytes_val:.1f}TB"
+    return f"{bytes_val:.1f}TiB"
 
 
 # ============================================================================
