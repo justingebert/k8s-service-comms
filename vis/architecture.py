@@ -71,8 +71,10 @@ def crop_whitespace(image_path):
 
 
 graph_attr = {
-    # "size": "16,9",
-    # "ratio": "fill"
+    "fontsize": "14",
+    "pad": "0.5",
+    "ratio": "0.5",
+    "size": "8,10!"
 }
 
 # Network-based architecture

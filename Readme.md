@@ -30,7 +30,7 @@ sequenceDiagram
     participant Receiver
     
     Note over Sender: t0 = hrtime()
-    Sender->>Receiver: HTTP POST /upload
+    Sender->>Receiver: HTTP POST
     activate Receiver
     Receiver-->>Sender: HTTP 200 OK
     deactivate Receiver
@@ -99,18 +99,18 @@ Latest benchmark results are saved to `results/runs/YYMMDD_HHMM_*/` with:
 ### Latency Comparison
 Direct comparison of mean transfer times with standard deviation error bars.
 
-![Transfer Time Comparison](results/archive/251229_1545_same-node_http8080_emptyDir/plots/latency_comparison.png)
+![Transfer Time Comparison](results/runs/251229_1545_same-node_http8080_emptyDir/plots/latency_comparison.png)
 
 
 ### Latency Percentiles
 Shows p50 (median), p95, and p99 latency across payload sizes. Each method uses one base color with lighter shades for higher percentiles.
 
-![Latency Percentiles](results/archive/251229_1545_same-node_http8080_emptyDir/plots/latency_percentiles.png)
+![Latency Percentiles](results/runs/251229_1545_same-node_http8080_emptyDir/plots/latency_percentiles.png)
 
 ### Throughput
 Average throughput with standard deviation across payload sizes.
 
-![Throughput](results/archive/251229_1545_same-node_http8080_emptyDir/plots/throughput.png)
+![Throughput](results/runs/251229_1545_same-node_http8080_emptyDir/plots/throughput.png)
 
 
 ## Notes
