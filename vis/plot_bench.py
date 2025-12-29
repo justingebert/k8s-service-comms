@@ -59,7 +59,7 @@ def load_benchmark_data(run_dir: Path) -> pd.DataFrame:
 
     df = pd.concat(dfs, ignore_index=True)
     #rename net to HTTP/TCP for clarity
-    df["method"] = df["method"].replace("net", "HTTP/TCP")
+    df["method"] = df["method"].replace("net", "network - HTTP/TCP")
 
     return df
 
