@@ -16,7 +16,7 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 # Go up one level to repo root, then into results/architecture
 OUTPUT_DIR = os.path.join(SCRIPT_DIR, "..", "results", "architecture")
 os.makedirs(OUTPUT_DIR, exist_ok=True)
-ICON_PATH = os.path.join(OUTPUT_DIR, "container.png")
+ICON_PATH = os.path.join(OUTPUT_DIR, "k8s-container-custom.png")
 
 def crop_whitespace(image_path):
     """Remove external whitespace from diagram image without affecting internal layout."""
@@ -87,12 +87,16 @@ with Diagram(
         with Cluster("Sender Pod"):
             sender = Pod("Sender\nContainer")
 
-        svc = Service("Network\nService")
+        svc = Service("Service")
 
         with Cluster("Receiver Pod"):
             receiver = Pod("Receiver\nContainer")
 
     sender >> Edge(label="HTTP") >> svc >> Edge(label="Routes") >> receiver
+    #sender << Edge(label="") << svc << Edge(label="") << receiver
+
+
+
 
 # Crop external whitespace
 crop_whitespace(os.path.join(OUTPUT_DIR, "network_arch.png"))
@@ -111,8 +115,7 @@ with Diagram(
         with Cluster("Combined Pod"):
             file_sender = Custom("Sender\nContainer", ICON_PATH)
 
-            with Cluster("Shared Volume"):
-                volume = Volume("emptyDir")
+            volume = Volume("emptyDir")
 
             file_receiver = Custom("Receiver\nContainer", ICON_PATH)
 

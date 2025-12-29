@@ -1,18 +1,8 @@
-"""
-visualization for network and file I/O service comms performance analysis.
-
-This script generates comparison plots showing:
-- Latency percentiles (p50, p95, p99) vs payload size
-- Throughput with error bars vs payload size
-- Direct comparison of transfer time between network and file methods
-"""
-
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
 import sys
-
 
 # ============================================================================
 # Configuration and Setup
@@ -68,6 +58,8 @@ def load_benchmark_data(run_dir: Path) -> pd.DataFrame:
         sys.exit(1)
 
     df = pd.concat(dfs, ignore_index=True)
+    #rename net to HTTP/TCP for clarity
+    df["method"] = df["method"].replace("net", "HTTP/TCP")
 
     return df
 
@@ -141,12 +133,6 @@ def format_bytes(bytes_val: int) -> str:
 # ============================================================================
 
 def plot_latency_percentiles(percentiles: pd.DataFrame, output_dir: Path) -> None:
-    """
-    Plot latency percentiles (p50, p95, p99) across payload sizes.
-
-    Styling: one base color per method with lighter shades for higher percentiles
-    to make the diagram easier to interpret.
-    """
     import matplotlib.colors as mcolors
 
     def lighten(color: str, amount: float) -> tuple:
@@ -214,17 +200,6 @@ def plot_latency_percentiles(percentiles: pd.DataFrame, output_dir: Path) -> Non
 
 
 def plot_throughput(thr_stats: pd.DataFrame, output_dir: Path) -> None:
-    """
-    Plot throughput with error bars (mean ± 1σ) across payload sizes.
-
-    What this shows:
-    - Center of bar: Average throughput (MiB/s) for that payload size
-    - Error bars: Standard deviation showing how much performance varies
-      - Short error bars = consistent performance
-      - Long error bars = inconsistent performance (some runs much faster/slower)
-
-    This reveals both average speed and consistency of the transfer method.
-    """
     plt.figure(figsize=(10, 6))
 
     for method, sub in thr_stats.groupby("method"):
@@ -260,20 +235,6 @@ def plot_throughput(thr_stats: pd.DataFrame, output_dir: Path) -> None:
 
 
 def plot_transfer_time_comparison(transfer_stats: pd.DataFrame, output_dir: Path) -> None:
-    """
-    Plot latency as a grouped bar chart with error bars comparing methods.
-
-    What this shows:
-    - Side-by-side bars comparing network vs file I/O for each data size
-    - Center of bar: Average (mean) latency
-    - Error bars: Standard deviation showing consistency
-      - Short error bars = consistent performance
-      - Long error bars = high variability between runs
-    - Shorter bar = lower latency (faster)
-    - Direct visual comparison makes it easy to see which method is better for each size
-
-    This is the clearest way to compare performance directly between methods.
-    """
     # Pivot data for grouped bar chart
     pivot_mean = transfer_stats.pivot(
         index="size_bytes", columns="method", values="mean"
@@ -333,24 +294,19 @@ def plot_transfer_time_comparison(transfer_stats: pd.DataFrame, output_dir: Path
 # ============================================================================
 
 def main():
-    """Main execution: load data, compute aggregations, and generate plots."""
-    # Find and load data
     run_dir = find_latest_run()
     print(f"📊 Using latest run: {run_dir.name}\n")
 
     df = load_benchmark_data(run_dir)
 
-    # Create output directory
     output_dir = run_dir / "plots"
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Compute aggregations
     print("Computing aggregations...")
     percentiles = compute_latency_percentiles(df)
     thr_stats = compute_throughput_stats(df)
     transfer_stats = compute_transfer_time_stats(df)
 
-    # Generate plots
     print("Generating plots...\n")
     plot_latency_percentiles(percentiles, output_dir)
     plot_throughput(thr_stats, output_dir)
